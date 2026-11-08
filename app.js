@@ -1,15 +1,17 @@
 // CZAS PRACY RM: ile czasu pracuję dziennie, tygodniowo i miesięcznie. Start/Stop z rodzajem pracy, wpisy ręczne.
 // Dane w bazie Zadań RM (Supabase, to samo logowanie, tabela czas_pracy, każdy widzi tylko swoje).
 // Bez config.js albo z ?proba: tryb próbny w tej przeglądarce.
-const WERSJA = 'v1';
+const WERSJA = 'v2';
 
+// od v2 (08.11.2026, Rafał) tylko 4 rodzaje pracy; stare klucze z v1 zostają w opisach, żeby dawne wpisy miały nazwę
 const RODZAJE = [
-  ['biuro', '🏢', 'Biuro'], ['teren', '🏠', 'Prezentacje i teren'], ['spotkania', '🤝', 'Spotkania'],
-  ['telefony', '📞', 'Telefony i maile'], ['dokumenty', '📄', 'Dokumenty i urzędy'], ['marketing', '📣', 'Marketing'],
-  ['nauka', '🎓', 'Nauka'], ['inne', '⚙️', 'Inne']
+  ['biuro', '🏢', 'Biuro'], ['teren', '🏠', 'Prezentacje i teren'],
+  ['szkolenie', '🎓', 'Szkolenie i networking'], ['dom', '💻', 'Praca w domu przy komputerze']
 ];
-const RODZ = Object.fromEntries(RODZAJE.map(([k, i, n]) => [k, { i, n }]));
-const KOLORY = { biuro: '#094d47', teren: '#2563eb', spotkania: '#7c3aed', telefony: '#0891b2', dokumenty: '#b45309', marketing: '#be185d', nauka: '#65a30d', inne: '#78716c' };
+const DAWNE = [['spotkania', '🤝', 'Spotkania'], ['telefony', '📞', 'Telefony i maile'], ['dokumenty', '📄', 'Dokumenty i urzędy'],
+  ['marketing', '📣', 'Marketing'], ['nauka', '🎓', 'Nauka'], ['inne', '⚙️', 'Inne']];
+const RODZ = Object.fromEntries(RODZAJE.concat(DAWNE).map(([k, i, n]) => [k, { i, n }]));
+const KOLORY = { biuro: '#094d47', teren: '#2563eb', szkolenie: '#7c3aed', dom: '#b45309', spotkania: '#0891b2', telefony: '#0891b2', dokumenty: '#78716c', marketing: '#be185d', nauka: '#65a30d', inne: '#78716c' };
 const MIESIACE = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
 const MIESIACE_D = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
 const DNI = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
@@ -116,7 +118,7 @@ const DB = (cfg.supabaseUrl && window.supabase && !/[?&]proba/.test(location.sea
 
 // ===================== STAN =====================
 const S = { user: null, profil: null, tab: 'dzis', licznik: null, dzisWpisy: [], tydzien: poniedzialek(dzis()), miesiac: dzis().slice(0, 7),
-  rodzaj: czytajLS('cp-rodzaj', 'biuro'), norma: czytajLS('cp-norma', 40) };
+  rodzaj: RODZAJE.some(([k]) => k === czytajLS('cp-rodzaj', 'biuro')) ? czytajLS('cp-rodzaj', 'biuro') : 'biuro', norma: czytajLS('cp-norma', 40) };
 
 // ===================== LICZENIE =====================
 // minuty wpisu w obrębie dnia (wpis przez północ dzieli się na dni), chodzący licznik liczy się do teraz
@@ -370,11 +372,11 @@ function htmlWniosek(o, rodzaj) {
   if (sr >= 10) zdania.push(`Średnio ${hKrotko(o.srednia)} na dzień pracy. To dużo na dłuższą metę, sprawdź, co da się oddać Anecie albo wyciąć.`);
   else if (sr < 5 && o.dniPracy >= 3) zdania.push(`Średnio ${hKrotko(o.srednia)} na dzień. Jeśli pracujesz więcej, pewnie licznik nie zawsze jest włączony.`);
   if (o.weekend >= 4 * 60) zdania.push(`W weekendy i święta: ${hTxt(o.weekend)}. Zaplanuj w tygodniu dzień krótszy w zamian.`);
-  const teren = (o.rodz.teren || 0) + (o.rodz.spotkania || 0), biuro = (o.rodz.biuro || 0) + (o.rodz.dokumenty || 0);
   if (o.razem >= 600) {
-    const pTeren = Math.round((100 * teren) / o.razem), pBiuro = Math.round((100 * biuro) / o.razem);
-    if (pTeren < 25) zdania.push(`Prezentacje, teren i spotkania to tylko ${pTeren}% czasu. To ten czas daje pozyski i transakcje, warto go zwiększać.`);
-    else zdania.push(`Prezentacje, teren i spotkania: ${pTeren}% czasu, biuro i dokumenty: ${pBiuro}%.`);
+    const pr = (k) => Math.round((100 * (o.rodz[k] || 0)) / o.razem);
+    if (pr('teren') < 25) zdania.push(`Prezentacje i teren to tylko ${pr('teren')}% czasu. To ten czas daje pozyski i transakcje, warto go zwiększać.`);
+    else zdania.push(`Prezentacje i teren: ${pr('teren')}% czasu, biuro: ${pr('biuro')}%.`);
+    if (pr('dom') >= 30) zdania.push(`Praca w domu przy komputerze to ${pr('dom')}% czasu. Sprawdź, czy część nie zmieści się w godzinach biura.`);
   }
   if (!zdania.length) zdania.push(rodzaj === 'tydzien' ? 'Równy tydzień, bez sygnałów ostrzegawczych w liczbach.' : 'Równy miesiąc, bez sygnałów ostrzegawczych w liczbach.');
   return `<div class="card wniosek">💬 ${zdania.map(esc).join(' ')}</div>`;
